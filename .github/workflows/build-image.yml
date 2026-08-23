@@ -1,0 +1,77 @@
+name: Build image
+
+# Shared by every app repo that runs on the k3s cluster. The per-repo copies
+# were byte-identical after substituting the name, so they are now one
+# definition called with a few inputs.
+#
+# Call it from an app repo with:
+#
+#   jobs:
+#     image:
+#       uses: jchevertonwynne/workflows/.github/workflows/build-image.yml@main
+#       permissions:
+#         contents: read
+#         packages: write
+#
+# Pinned to @main here for a homelab; @<sha> would be the right call if these
+# repos were not all owned by one person.
+
+on:
+  workflow_call:
+    inputs:
+      platforms:
+        description: Target platforms. The Pi is arm64; nothing else needs building.
+        type: string
+        default: linux/arm64
+      context:
+        type: string
+        default: .
+
+jobs:
+  build:
+    name: Build and push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # buildx for the platform plumbing, but no QEMU: the Dockerfiles
+      # cross-compile with Go's own toolchain via GOARCH=$TARGETARCH, which is
+      # far quicker than emulating an entire build.
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # Three tags, each doing a different job:
+          #
+          #   main                    - for a quick docker pull
+          #   sha-<full sha>          - immutable, traceable to a commit
+          #   main-<sha>-<timestamp>  - what Flux's ImagePolicy sorts on
+          #
+          # The third exists because image automation must answer "which tag is
+          # newest", and neither of the others can: a moving tag has no
+          # ordering, and sha- tags sort lexically into nonsense.
+          tags: |
+            type=raw,value=main
+            type=sha,format=long
+            type=raw,value={{branch}}-{{sha}}-{{date 'YYYYMMDDHHmmss'}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
