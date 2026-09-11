@@ -1,0 +1,30 @@
+name: Renovate
+
+# Self-hosted rather than the GitHub App: no install to manage, and
+# GITHUB_TOKEN can open PRs in this repo already.
+#
+# This repo had no Renovate at all until now, which is how every action in
+# build-image.yml drifted a major version or more behind and started warning
+# that Node 20 is deprecated - in the one workflow all seven apps call.
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: renovatebot/github-action@v46.2.4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_PLATFORM: github
+          LOG_LEVEL: info
