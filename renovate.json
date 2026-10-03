@@ -6,7 +6,6 @@
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "Europe/London",
-  "schedule": ["before 6am on monday"],
   "packageRules": [
     {
       "description": "This repo holds the image build every app calls, with packages:write. A bad action version breaks every app's deploy at once, so give a release a few days to be pulled before taking it.",
